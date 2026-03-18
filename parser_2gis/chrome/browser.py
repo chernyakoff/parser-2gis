@@ -36,10 +36,13 @@ class ChromeBrowser():
             binary_path,
             f'--remote-debugging-port={self._remote_port}',
             f'--user-data-dir={self._profile_path}', '--no-default-browser-check',
-            '--no-first-run', '--no-sandbox', '--disable-fre',
+            '--no-first-run', '--disable-fre',
             '--remote-allow-origins=*',
             f'--js-flags=--expose-gc --max-old-space-size={chrome_options.memory_limit}',
         ]
+
+        if os.name != 'nt':
+            self._chrome_cmd.append('--no-sandbox')
 
         if chrome_options.start_maximized:
             self._chrome_cmd.append('--start-maximized')
@@ -59,6 +62,10 @@ class ChromeBrowser():
                                           stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         else:
             self._proc = subprocess.Popen(self._chrome_cmd, shell=False)
+
+    def poll(self) -> int | None:
+        """Return process exit code if Chrome has terminated."""
+        return self._proc.poll()
 
     @property
     def remote_port(self) -> int:

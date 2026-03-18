@@ -15,14 +15,6 @@ jobs:
           - os: ubuntu-20.04
             dist: linux
 
-          - os: macos-12
-            dist: macos
-            ext:
-
-          - os: macos-14
-            dist: macos-arm
-            ext:
-
           - os: windows-2019
             dist: windows
 
@@ -58,7 +50,7 @@ jobs:
       run: pushd dist && 7z a ../Parser2GIS-${{steps.get_version.outputs.version}}-${{matrix.dist}}.zip  Parser2GIS.exe && popd
       shell: bash
 
-    - name: Archive Linux/MacOS distributive
+    - name: Archive Linux distributive
       if: matrix.dist != 'windows'
       run: tar -C dist/ -czvf Parser2GIS-${{steps.get_version.outputs.version}}-${{matrix.dist}}.tar.gz Parser2GIS
       shell: bash

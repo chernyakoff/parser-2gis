@@ -51,6 +51,9 @@ class ChromeRemote:
         Returns:
             `True` on success, `False` on failure.
         """
+        if self._chrome_browser.poll() is not None:
+            raise ChromeException('Chrome завершился до подключения к DevTools. Проверьте путь к браузеру и параметры запуска.')
+
         try:
             self._chrome_interface = pychrome.Browser(url=self._dev_url)
             self._chrome_tab = self._create_tab()
