@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..common import wait_until_finished
 from ..logger import logger
+from ..paths import user_path
 from .exceptions import ChromePathNotFound
 from .utils import free_port, locate_chrome_path
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class ChromeBrowser():
-    """Chrome Browser with temporary profile.
+    """Chrome Browser with temporary profile in app-owned user directory.
 
     Args:
         chrome_options: Chrome options.
@@ -30,7 +31,11 @@ class ChromeBrowser():
 
         logger.debug('Запуск Chrome Браузера.')
 
-        self._profile_path = tempfile.mkdtemp()
+        # Avoid system temp directory issues on Windows by keeping session
+        # profiles under parser-2gis user data directory.
+        profile_root = user_path(is_config=False) / 'chrome-profile'
+        profile_root.mkdir(parents=True, exist_ok=True)
+        self._profile_path = tempfile.mkdtemp(prefix='session-', dir=profile_root)
         self._remote_port = free_port()
         self._chrome_cmd = [
             binary_path,
