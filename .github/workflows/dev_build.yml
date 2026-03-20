@@ -7,18 +7,7 @@ jobs:
   build:
     name: Development Build
 
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-20.04
-            dist: linux
-            ext:
-
-          - os: windows-2019
-            dist: windows
-            ext: .exe
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2022
 
     steps:
     - uses: actions/checkout@v3
@@ -41,8 +30,8 @@ jobs:
         python setup.py build_standalone
 
     - name: Upload distributive
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: Parser2GIS-dev-${{matrix.dist}}
-        path: dist/Parser2GIS${{matrix.ext}}
+        name: Parser2GIS-dev-windows
+        path: dist/Parser2GIS.exe
         retention-days: 30

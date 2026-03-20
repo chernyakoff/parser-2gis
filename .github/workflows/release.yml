@@ -9,16 +9,7 @@ jobs:
   build:
     name: Build
 
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-20.04
-            dist: linux
-
-          - os: windows-2019
-            dist: windows
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2022
 
     steps:
     - name: Get the version
@@ -46,19 +37,13 @@ jobs:
         python setup.py build_standalone
 
     - name: Archive Windows distributive
-      if: matrix.dist == 'windows'
-      run: pushd dist && 7z a ../Parser2GIS-${{steps.get_version.outputs.version}}-${{matrix.dist}}.zip  Parser2GIS.exe && popd
-      shell: bash
-
-    - name: Archive Linux distributive
-      if: matrix.dist != 'windows'
-      run: tar -C dist/ -czvf Parser2GIS-${{steps.get_version.outputs.version}}-${{matrix.dist}}.tar.gz Parser2GIS
+      run: pushd dist && 7z a ../Parser2GIS-${{steps.get_version.outputs.version}}-windows.zip Parser2GIS.exe && popd
       shell: bash
 
     - name: Upload distributive
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: dist-${{ matrix.dist }}
+        name: dist-windows
         path: Parser2GIS-*
         retention-days: 5
 
@@ -85,7 +70,7 @@ jobs:
         version: ${{ steps.get_version.outputs.version }}
         path: ./CHANGELOG.md
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
 
     - uses: ncipollo/release-action@v1.10.0
       with:
@@ -94,6 +79,6 @@ jobs:
         body: ${{ steps.changelog_reader.outputs.changes }}
         prerelease: ${{ steps.changelog_reader.outputs.status == 'prereleased' }}
         draft: true
-        artifacts: "dist-*/*"
+        artifacts: "dist-windows/*"
         allowUpdates: true
         token: ${{ secrets.GITHUB_TOKEN }}
