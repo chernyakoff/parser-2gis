@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import queue
 import re
 import threading
@@ -40,10 +41,27 @@ class ChromeRemote:
         self._chrome_browser: ChromeBrowser
         self._chrome_interface: pychrome.Browser
         self._chrome_tab: pychrome.Tab
+        self._http = requests.Session()
+        self._http.trust_env = False
         self._response_patterns: list[str] = response_patterns
         self._response_queues: dict[str, queue.Queue[Response]] = {x: queue.Queue() for x in response_patterns}
         self._requests: dict[str, Request] = {}  # _requests[request_id] = <Request>
         self._requests_lock = threading.Lock()
+
+    def _ensure_localhost_bypass(self) -> None:
+        """Ensure localhost DevTools requests bypass system proxies."""
+        no_proxy_hosts = ['127.0.0.1', 'localhost']
+        for env_name in ('NO_PROXY', 'no_proxy'):
+            existing = os.environ.get(env_name, '')
+            existing_hosts = [host.strip() for host in existing.split(',') if host.strip()]
+            changed = False
+            for host in no_proxy_hosts:
+                if host not in existing_hosts:
+                    existing_hosts.append(host)
+                    changed = True
+            if changed:
+                os.environ[env_name] = ','.join(existing_hosts)
+                logger.info('%s=%s', env_name, os.environ[env_name])
 
     @wait_until_finished(timeout=60)
     def _connect_interface(self) -> bool:
@@ -56,7 +74,7 @@ class ChromeRemote:
             raise ChromeException('Chrome завершился до подключения к DevTools. Проверьте путь к браузеру и параметры запуска.')
 
         try:
-            version_resp = requests.get(f'{self._dev_url}/json/version', timeout=1)
+            version_resp = self._http.get(f'{self._dev_url}/json/version', timeout=1)
             logger.debug('DevTools endpoint ответил со статусом %s.', version_resp.status_code)
             self._chrome_interface = pychrome.Browser(url=self._dev_url)
             self._chrome_tab = self._create_tab()
@@ -71,6 +89,7 @@ class ChromeRemote:
         # Open browser
         self._chrome_browser = ChromeBrowser(self._chrome_options)
         self._dev_url = f'http://127.0.0.1:{self._chrome_browser.remote_port}'
+        self._ensure_localhost_bypass()
         logger.info('Chrome path: %s', self._chrome_browser.binary_path)
         logger.info('Chrome profile: %s', self._chrome_browser.profile_path)
         logger.info('Chrome DevTools endpoint: %s', self._dev_url)
@@ -98,14 +117,14 @@ class ChromeRemote:
     def _create_tab(self) -> pychrome.Tab:
         """Create Chrome Tab."""
         logger.debug('Создание новой вкладки DevTools через %s/json/new', self._dev_url)
-        resp = requests.put('%s/json/new' % (self._dev_url), json=True)
+        resp = self._http.put('%s/json/new' % (self._dev_url), json=True)
         return pychrome.Tab(**resp.json())
 
     def _close_tab(self, tab: pychrome.Tab) -> None:
         """Close Chrome Tab."""
         if tab.status == pychrome.Tab.status_started:
             tab.stop()
-        requests.put('%s/json/close/%s' % (self._dev_url, tab.id))
+        self._http.put('%s/json/close/%s' % (self._dev_url, tab.id))
 
     def _setup_tab(self) -> None:
         """Hide webdriver, enable requests/response interception, fix UA."""
@@ -228,7 +247,7 @@ class ChromeRemote:
             and check if our tab is still alive."""
             while not self._chrome_tab._stopped.is_set():
                 try:
-                    ret = requests.get('%s/json' % self._dev_url, json=True)
+                    ret = self._http.get('%s/json' % self._dev_url, json=True)
                     if not any(x['id'] == self._chrome_tab.id for x in ret.json()):
                         nonlocal tab_detached
                         tab_detached = True
