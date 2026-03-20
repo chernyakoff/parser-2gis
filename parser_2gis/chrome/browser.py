@@ -73,9 +73,24 @@ class ChromeBrowser():
         return self._proc.poll()
 
     @property
+    def binary_path(self) -> str:
+        """Chrome executable path."""
+        return self._chrome_cmd[0]
+
+    @property
+    def profile_path(self) -> str:
+        """Chrome profile path."""
+        return self._profile_path
+
+    @property
     def remote_port(self) -> int:
         """Remote debugging port."""
         return self._remote_port
+
+    @property
+    def command(self) -> list[str]:
+        """Chrome launch command."""
+        return list(self._chrome_cmd)
 
     @wait_until_finished(timeout=5, throw_exception=False)
     def _delete_profile(self) -> bool:

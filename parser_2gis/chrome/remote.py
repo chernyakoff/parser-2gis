@@ -12,6 +12,7 @@ from requests.exceptions import RequestException
 from websocket import WebSocketException
 
 from ..common import wait_until_finished
+from ..logger import logger
 from .browser import ChromeBrowser
 from .dom import DOMNode
 from .exceptions import ChromeException
@@ -55,11 +56,14 @@ class ChromeRemote:
             raise ChromeException('Chrome завершился до подключения к DevTools. Проверьте путь к браузеру и параметры запуска.')
 
         try:
+            version_resp = requests.get(f'{self._dev_url}/json/version', timeout=1)
+            logger.debug('DevTools endpoint ответил со статусом %s.', version_resp.status_code)
             self._chrome_interface = pychrome.Browser(url=self._dev_url)
             self._chrome_tab = self._create_tab()
             self._chrome_tab.start()
             return True
-        except (RequestException, WebSocketException):
+        except (RequestException, WebSocketException) as e:
+            logger.debug('Не удалось подключиться к DevTools endpoint %s: %s', self._dev_url, e, exc_info=True)
             return False
 
     def start(self) -> None:
@@ -67,15 +71,34 @@ class ChromeRemote:
         # Open browser
         self._chrome_browser = ChromeBrowser(self._chrome_options)
         self._dev_url = f'http://127.0.0.1:{self._chrome_browser.remote_port}'
+        logger.info('Chrome path: %s', self._chrome_browser.binary_path)
+        logger.info('Chrome profile: %s', self._chrome_browser.profile_path)
+        logger.info('Chrome DevTools endpoint: %s', self._dev_url)
+        logger.debug('Chrome launch args: %s', self._chrome_browser.command)
 
         # Connect browser with CDP
-        self._connect_interface()
+        try:
+            self._connect_interface()
+        except TimeoutError as e:
+            proc_exit_code = self._chrome_browser.poll()
+            message = (
+                'Не удалось подключиться к Chrome DevTools за 60 секунд. '
+                f'Chrome path: {self._chrome_browser.binary_path}; '
+                f'profile: {self._chrome_browser.profile_path}; '
+                f'DevTools: {self._dev_url}; '
+                f'chrome_exit_code: {proc_exit_code}. '
+                'Проверьте, открывается ли endpoint /json/version вручную, и не блокирует ли систему remote debugging.'
+            )
+            logger.error(message)
+            raise ChromeException(message) from e
+
         self._setup_tab()
         self._init_tab_monitor()
 
     def _create_tab(self) -> pychrome.Tab:
         """Create Chrome Tab."""
-        resp = requests.put('%s/json/new' % (self._dev_url), json=True)         
+        logger.debug('Создание новой вкладки DevTools через %s/json/new', self._dev_url)
+        resp = requests.put('%s/json/new' % (self._dev_url), json=True)
         return pychrome.Tab(**resp.json())
 
     def _close_tab(self, tab: pychrome.Tab) -> None:
